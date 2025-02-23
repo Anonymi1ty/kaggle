@@ -279,7 +279,7 @@ units_energy shape before: (2, 16)
 
 定义agent行为和相关奖励函数
 
-
+> 对抗性的时候，重点看下sap过程，为啥可以远程吸能量？
 
 ### train
 
