@@ -279,13 +279,23 @@ units_energy shape before: (2, 16)
 
 定义agent行为和相关奖励函数
 
+
+
 ### train
 
 1.加载环境直接用`from luxai_s3.wrappers import LuxAIS3GymEnv`
 
 2.初始化两个agent对抗训练
 
+
+
+（对手的多样性，设计类似经验放回池子checkpoints,）
+
 直接开始训练
 
 ### 运行
+
+main.py
+
+submission.tar.gz
 
