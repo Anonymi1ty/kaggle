@@ -4,9 +4,9 @@
 
 同一个代码，如果在调用main函数时返回任何任务台报错或者警告，将会影响agent的运行结果（官方文档说，print会被视为agent的输出）：
 
-![image-20250222190247079](D:\Typora\myimage\image-20250222190247079.png)
+![image-20250222190247079](https://my-typora-p1.oss-cn-beijing.aliyuncs.com/typoraImgs/image-20250222190247079.png)
 
-![image-20250222190310664](D:\Typora\myimage\image-20250222190310664.png)
+![image-20250222190310664](https://my-typora-p1.oss-cn-beijing.aliyuncs.com/typoraImgs/image-20250222190310664.png)
 
 1.对于我们原本环境，可以改为和他们一样的四楼，如果load函数报错，那么agent.py文件可以直接作为主函数不写进去
 
