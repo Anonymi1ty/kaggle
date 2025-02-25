@@ -133,7 +133,7 @@
 传入的**obs**的形式
 
 ```json
-output = {
+obs = {
     'units': {
         'position': np.array([
             [[-1, -1], [-1, -1], [-1, -1], [-1, -1], [-1, -1], [-1, -1], [-1, -1], [-1, -1],
@@ -262,40 +262,4 @@ units_energy shape before: (2, 16)
 再检查棋子走路逻辑，position的逻辑是否和我们训练中定义的对上
 
 
-
-
-
-# MAPPO
-
-### ENV
-
-> debug可以按照chat方法打印
-
-1.查看接口传参规范，对齐比赛数据和训练部分的数据
-
-2.设计自己需要的函数，比如想要实现什么逻辑（奖励函数等等）？
-
-### agent
-
-定义agent行为和相关奖励函数
-
-> 对抗性的时候，重点看下sap过程，为啥可以远程吸能量？
-
-### train
-
-1.加载环境直接用`from luxai_s3.wrappers import LuxAIS3GymEnv`
-
-2.初始化两个agent对抗训练
-
-
-
-（对手的多样性，设计类似经验放回池子checkpoints,）
-
-直接开始训练
-
-### 运行
-
-main.py
-
-submission.tar.gz
 

@@ -1,0 +1,70 @@
+# HARL库实现
+
+## RL的ENV概述
+
+| **Parameter**                 | **Value/Description**                                        |
+| ----------------------------- | ------------------------------------------------------------ |
+| **Import**                    | `from luxai_s3.wrappers import LuxAIS3GymEnv`                |
+| **Environment Name**          | `WapperLuxAIS3GymEnv_v1` (示例名称，可根据版本管理命名)      |
+| **Game Type**                 | 2队对抗的策略游戏，在 24×24 的动态地图上进行，每队拥有多个单位。地图上含有空白、星云、和小行星等特殊地块，以及能量节点与遗迹节点。 |
+| **Map Dimensions**            | 24 x 24                                                      |
+| **Match Structure**           | 每局比赛 100 步；一场完整游戏（episode）由 5 场比赛组成（BO5）。 |
+| **Unit Spawn Rules**          | - 每队初始拥有 1 个单位- 每 3 步生成 1 个单位，最多 16 个单位/队- 单位在所属队伍的固定角落出生，移除后单位 ID 循环使用 |
+| **Agents & 参数共享**         | - 使用 HARL 的共享参数多代理方法- 每个队内各单位视为独立 agent，但共享同一策略网络（CTDE 训练框架）- 最大 agent 数量：32（每队最多 16 个） |
+| **Action Space**              | 固定形状的 `(max_units, 3)` 整数数组（每队 16 个单位）：1. **Action Type**：  0 – 空动作（待机，不消耗能量）；  1 – 向上移动；  2 – 向右移动；  3 – 向下移动；  4 – 向左移动；  5 – 汲取动作2. **Delta x, Delta y**：仅对汲取动作有效，表示相对于当前单位位置的目标偏移，要求 |
+| **Observation Space**         | 以 JSON 格式返回，主要包含：• **Units**： – `position`：形状为 (T, N, 2) 的数组（T=队数，N=最大单位数）； – `energy`：形状为 (T, N, 1)；• **units_mask**：(T, N) 布尔数组，标识各单位是否存在/可见；• **sensor_mask**：(W, H) 布尔矩阵，指示地图上哪些格子对该队可见；• **map_features**：包含地图上每个格子的能量值（energy）及类型（tile_type，其中 0=空白，1=星云，2=小行星）；• **Relic Nodes**： – `relic_nodes`：形状 (R, 2) 的数组（R 为最大遗迹节点数）； – `relic_nodes_mask`：布尔数组；• **Team 信息**： – `team_points`：当前比赛积分； – `team_wins`：当前局累计胜场；• **Steps**：全局步数（`steps`）及当前比赛步数（`match_steps`） |
+| **Tile Types & Map Dynamics** | - **空白格**：普通地块，无特殊影响- **星云格**：可通行，但会降低单位视野（`nebula_tile_vision_reduction`: 5）及能量（`nebula_tile_energy_reduction`: 2）；- **小行星地块**：不可通行，阻挡单位移动；- **能量节点**：在地图上以对称方式随机生成，提供能量场，能量值由节点的距离函数计算；- **遗迹节点**：生成时附带随机 5×5 掩码，只有当友方单位位于特定区域内时才能获得积分；地图中部分特殊地块（如星云、小行星）可能随时间以固定对称方式移动（漂移速度约 0.05，能量节点漂移幅度约 4） |
+| **Unit Mechanics**            | - **能量**：初始 100，最大 400- **移动**：除原地待机外，每次移动消耗 `unit_move_cost`（2 能量）；- **汲取动作**：The sap action lets a unit target a specific tile on the map within a range called `params.unit_sap_range`，并对目标格（及其周边 8 格）的敌方单位扣除能量，每个单位扣除 `unit_sap_cost`（49）；成功时本单位自身也消耗相同能量，附带衰减因子 `unit_sap_dropoff_factor`（1.0）；- **碰撞与能量空洞**：同一格内若出现多个敌方单位，能量总和高的队伍获胜，其它单位被移除；同时，每个单位在四个基本方向上会生成“能量空洞”场，对邻近敌方单位造成能量削减（比例 `unit_energy_void_factor`: 0.25） |
+| **Vision & Sensors**          | - 每个单位拥有传感器范围 `unit_sensor_range`（1），视野强度根据距离和地块影响线性衰减- 团队视野为所有单位视野的并集（fog_of_war 启用） |
+| **Game Outcome**              | 比赛采用 BO5 规则：- 最终以每队获得的遗迹积分决定胜负；- 积分相同时，比较单位剩余能量总和；- 若仍然平局，则随机确定胜者 |
+| **Kit & API Structure**       | - 每个 agent 存在于独立文件夹内，包含 `main.py` 和 `agent.py`（或对应语言的 agent 文件）- 代理需实现 `act(step, obs, remainingOverageTime)` 函数来返回 (N, 3) 的动作数组- 对于不存在的单位，动作不会生效 |
+
+------
+
+这个优化后的表格整合了游戏的动态地图、单位机制、观察和动作空间的详细信息，同时反映了使用共享参数多代理（CTDE）方法的训练设计。通过这一总结，你可以更清晰地理解环境的各项参数，并据此构建强化学习训练策略。
+
+## 具体实施
+
+### ENV
+
+> debug可以按照chat方法打印
+
+HARL直接使用：==1.检查from 调用model问题==2.==检查LuxAIS3EnvWrapper包装能使用吗== 3.HARL用法
+
+>1.查看接口传参规范，对齐比赛数据和训练部分的数据
+>
+>2.设计自己需要的函数，比如想要实现什么逻辑（奖励函数等等）？
+
+按照官方需要写一个新环境吧
+
+([0],[0]位置相当于对于relic_node左上角的位置；[3],[3]的位置代表relic_nodes)， avail_relic_nodes都为[-1,-1]时，potential point全为-1;每找到一个avail_relic_nodes，按顺序一次初始化potential point，将一个5*5的矩阵全标志为F，如果发现因为移动到potential point上后next state的team_points增速出现变化（例如从每回合+0变成了每回合+1），那么将这个点标记为T
+
+### agent
+
+定义agent行为和相关奖励函数
+
+> 对抗性的时候，重点看下sap过程，为啥可以远程吸能量？
+
+### train
+
+1.加载环境直接用`from luxai_s3.wrappers import LuxAIS3GymEnv`
+
+2.初始化两个agent对抗训练
+
+
+
+（对手的多样性，设计类似经验放回池子checkpoints,）
+
+直接开始训练
+
+### 运行
+
+main.py
+
+submission.tar.gz
+
+
+
+
+
+### Applying to New Environments

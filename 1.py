@@ -1,13 +1,7 @@
-import sys , os
-base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(base_dir)
-from MARLlib.marllib import marl
-
-# prepare env
-env = marl.make_env(environment_name="mpe", map_name="simple_spread")
-# initialize algorithm with appointed hyper-parameters
-mappo = marl.algos.mappo(hyperparam_source="mpe")
-# build agent model based on env + algorithms + user preference
-model = marl.build_model(env, mappo, {"core_arch": "mlp", "encode_layer": "128-256"})
-# start training
-mappo.fit(env, model, stop={"timesteps_total": 1000000}, checkpoint_freq=100, share_policy="group")
+for unit_id in range(16) :
+    print(unit_id)
+    
+friendly_obs = "a"
+enemy_obs = "b"
+res = [friendly_obs]*16 + [enemy_obs]*16
+print(res)
