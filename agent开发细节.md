@@ -2,13 +2,15 @@
 
 ## 核心问题
 
+`agent.py`内的`self.model = PPO.load(model_path)`会产生warning警告，这本身不是什么问题，但是如果将其使用bash命令`%%writefile agent/train.py`写为train.py文件，在main.py调用的时候会产生问题，如下所示：
+
 同一个代码，如果在调用main函数时返回任何任务台报错或者警告，将会影响agent的运行结果（官方文档说，print会被视为agent的输出）：
 
 ![image-20250222190247079](https://my-typora-p1.oss-cn-beijing.aliyuncs.com/typoraImgs/image-20250222190247079.png)
 
 ![image-20250222190310664](https://my-typora-p1.oss-cn-beijing.aliyuncs.com/typoraImgs/image-20250222190310664.png)
 
-1.对于我们原本环境，可以改为和他们一样的四楼，如果load函数报错，那么agent.py文件可以直接作为主函数不写进去
+所以修改思路可以是将`%%writefile agent/train.py`指令去除，这样就将load函数给出的warning在控制台抛出，而不是在main.py调用时影响agent的行为
 
 2.手写开发环境多此一举，`from luxai_s3.wrappers import LuxAIS3GymEnv`直接调比赛环境。
 

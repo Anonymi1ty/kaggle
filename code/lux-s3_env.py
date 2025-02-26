@@ -4,6 +4,8 @@ from luxai_s3.wrappers import LuxAIS3GymEnv
 
 class HarlLuxAIS3Env:
     def __init__(self, seed=42, player_id="player_0"):
+        self.seed = seed
+        self.current_step = 0
         # 实例化原环境（可根据需要选择 numpy_output 参数）
         self.env = LuxAIS3GymEnv(numpy_output=True)
         obs, info = self.env.reset(seed=seed)
@@ -29,9 +31,9 @@ class HarlLuxAIS3Env:
         self.n_agents = self.max_units * 2  # 两队共 32 个 agent
         
         # 原环境动作空间为每队一个 (max_units, 3) 的 Box，
-        # 这里拆分为每个 agent 一个 (3,) 的 Box（取值范围 0~5）
-        self.action_space = [gym.spaces.Box(low=0, high=5, shape=(3,), dtype=np.int16)
-                             for _ in range(self.n_agents)]
+        # 这里拆分为每个 agent 一个 (3,) 的 Box（取值范围 0~6）
+        self.action_space = [gym.spaces.Box(low=0, high=6, shape=(3,), dtype=np.int16)
+                        for _ in range(self.n_agents)]
         
         # 构造共享观测空间（例如全局地图信息等），这里直接用初始观测中的数据作为占位
         friendly_obs = obs[self.friendly_idx]
@@ -170,10 +172,16 @@ class HarlLuxAIS3Env:
 
         return unit_obs
 
+    # seed值是init+1
     def reset(self, seed=None):
         """
         重置环境，返回 agent 级别观测、全局状态以及可用动作信息。
         """
+        self.current_step = 0
+        # 如果未传入 seed，则使用 init 中 seed+1
+        if seed is None:
+            seed = self.seed + 1
+            
         obs, info = self.env.reset(seed=seed)
         friendly_obs = obs[self.friendly_idx]
         enemy_obs = obs[self.enemy_idx]
@@ -192,17 +200,21 @@ class HarlLuxAIS3Env:
                                                          self.local_window_size)
             obs_agents.append(unit_obs)
         
-        #TODO: 确认state??
-        state = info.get("state", None)
+        # 返回 agent 级别观测、全局状态、信息和可用动作
+        s_obs = [friendly_obs] * self.max_units + [enemy_obs] * self.max_units
+        # available_actions = self.get_avail_actions()
+        #TODO: 看看会不会报错，如果报错就说明是.copy()复制的个数和self.n_agents不一样
         available_actions = self.action_space.copy()
-        return obs_agents, state, available_actions
+        infos = [info] * self.n_agents
+        return obs_agents, s_obs, infos, available_actions
 
-    #TODO: 设计step函数和奖励函数
+    #TODO: 设计奖励函数
     def step(self, actions):
         """
         执行一步环境交互。
         参数 actions 为长度为 n_agents 的动作列表，
         返回 agent 级别观测、全局状态、各 agent 奖励、done 标志、info 和可用动作。
+        return obs_agents, s_obs, rewards, dones, infos, available_actions
         """
         # 将动作列表拆分为友方和敌方（各 self.max_units 个）
         actions_team_friendly = np.stack(actions[:self.max_units])
@@ -233,7 +245,7 @@ class HarlLuxAIS3Env:
                                                          self.local_window_size)
             obs_agents.append(unit_obs)
         
-        # 处理奖励：假设 reward 为各队奖励，分配给各自的 agent
+        #TODO:处理奖励：假设 reward 为各队奖励，分配给各自的 agent
         if isinstance(reward, (list, np.ndarray)) and len(reward) >= 2:
             reward_friendly = reward[self.friendly_idx]
             reward_enemy = reward[self.enemy_idx]
@@ -244,10 +256,25 @@ class HarlLuxAIS3Env:
         
         done = terminated or truncated
         dones = [done] * self.n_agents
+        infos = [info] * self.n_agents
         
+        # available_actions = self.get_avail_actions()
+        #TODO: 看看会不会报错，如果报错就说明是.copy()复制的个数和self.n_agents不一样
         available_actions = self.action_space.copy()
-        state = info.get("state", None)
-        return obs_agents, state, rewards, dones, info, available_actions
+        s_obs = [friendly_obs] * self.max_units + [enemy_obs] * self.max_units
+        return obs_agents, s_obs, rewards, dones, infos, available_actions
+
+    # def get_avail_actions(self):
+        
+    #     avail_actions = []
+    #     for agent_id in range(self.n_agents):
+    #         avail_agent = self.get_avail_agent_actions(agent_id)
+    #         avail_actions.append(avail_agent)
+    #     return avail_actions
+
+    # def get_avail_agent_actions(self, agent_id):
+    #     """Returns the available actions for agent_id"""
+    #     return self.action_space[agent_id]
 
     def seed(self, seed):
         """
