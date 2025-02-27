@@ -15,8 +15,10 @@ class HarlLuxAIS3Env:
         self.player_id = player_id
         if player_id == 'player_0':
             self.friendly_idx, self.enemy_idx = 0, 1
+            self.enemy_id = 'player_1'
         else:
             self.friendly_idx, self.enemy_idx = 1, 0
+            self.enemy_id = 'player_0'
 
         # 存储游戏相关参数，便于后续 reset/step 中使用
         self.unit_sap_range = env_cfg["unit_sap_range"]
@@ -36,8 +38,8 @@ class HarlLuxAIS3Env:
                         for _ in range(self.n_agents)]
         
         # 构造共享观测空间（例如全局地图信息等），这里直接用初始观测中的数据作为占位
-        friendly_obs = obs[self.friendly_idx]
-        enemy_obs = obs[self.enemy_idx]
+        friendly_obs = obs[self.player_id]
+        enemy_obs = obs[self.enemy_id]
         self.share_observation_space = [friendly_obs] * self.max_units + [enemy_obs] * self.max_units
         
         # 构造每个 agent 的观测空间
@@ -183,8 +185,8 @@ class HarlLuxAIS3Env:
             seed = self.seed + 1
             
         obs, info = self.env.reset(seed=seed)
-        friendly_obs = obs[self.friendly_idx]
-        enemy_obs = obs[self.enemy_idx]
+        friendly_obs = obs[self.player_id]
+        enemy_obs = obs[self.enemy_id]
         
         obs_agents = []
         for unit_id in range(self.max_units):
@@ -228,8 +230,8 @@ class HarlLuxAIS3Env:
         
         obs, reward, terminated, truncated, info = self.env.step(action_dict)
         
-        friendly_obs = obs[self.friendly_idx]
-        enemy_obs = obs[self.enemy_idx]
+        friendly_obs = obs[self.player_id]
+        enemy_obs = obs[self.enemy_id]
         
         obs_agents = []
         for unit_id in range(self.max_units):
