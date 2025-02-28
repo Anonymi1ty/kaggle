@@ -90,11 +90,23 @@ class HarlLuxAIS3Env:
                     'position': player_obs['units']['position'][friendly_idx][i],
                     'energy': player_obs['units']['energy'][friendly_idx][i]
                 })
+            # 如果是当前 unit_id，但是该单位已丢失，则默认值
+            else:
+                friendly_units.append({
+                    'position': [-1, -1],
+                    'energy': -1
+                })
         for i in range(N):
             if player_obs['units_mask'][enemy_idx][i]:
                 enemy_units.append({
                     'position': player_obs['units']['position'][enemy_idx][i],
                     'energy': player_obs['units']['energy'][enemy_idx][i]
+                })
+            # 如果是当前 unit_id，但是该单位已丢失，则默认值
+            else:
+                friendly_units.append({
+                    'position': [-1, -1],
+                    'energy': -1
                 })
 
         # 提取当前单位的状态（假设 unit_id 合法且该单位存在）
@@ -169,7 +181,6 @@ class HarlLuxAIS3Env:
 
         return unit_obs
 
-    #TODO:enemy_obs加入
     def reset(self, seed=None):
         """
         重置环境，返回 agent 级别观测、共享观测、infos 和可用动作。
@@ -210,6 +221,7 @@ class HarlLuxAIS3Env:
         self.delta = 0
         return obs_agents, s_obs, available_actions, enemy_obs_return, infos
 
+    #TODO:检查chat给的内容
     def get_unit_reward(self, unit_id, team_obs, obs_agents, s_obs, action_info):
         """
         计算单个 unit 的奖励。
@@ -306,7 +318,7 @@ class HarlLuxAIS3Env:
         return reward
 
 
-    #TODO:价值函数
+    #TODO:检查chat给的内容
     def step(self, actions, enemy_actions = None):
         """
         执行一步环境交互。
