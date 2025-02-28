@@ -301,7 +301,7 @@ class HarlLuxAIS3Env:
         if action_info.get("sap_success", False):
             reward += 0.5
         if action_info.get("sap_fail", False):
-            reward -= 0.5
+            reward -= 0.3
         if action_info.get("illegal_move", False):
             reward -= 0.5
 
@@ -346,42 +346,21 @@ class HarlLuxAIS3Env:
         team_obs = obs[self.player_id]
         enemy_obs = obs[self.enemy_id]
         
-        # 初始化 action_info 字典
-        action_info_all = {i: {"sap_success": False, "sap_fail": False, "illegal_move": False} for i in range(self.max_units)}
-
-        # 生成 action_info
+        # 构建己方和敌方的局部观测
+        obs_agents = []
+        enemy_obs_return = []
         for unit_id in range(self.max_units):
-            action = actions[unit_id]  # 当前 agent 的动作
-            # 判断是否为 sap 动作
-            if action[0] == 5:  # sap 动作
-                if abs(action[1]) < self.unit_sap_range and abs(action[2]) < self.unit_sap_range:
-                    # 检查该单位是否命中了敌方单位
-                    target_pos = [action[1], action[2]]
-                    hit_enemy = False
-                    # 检查周围8个格子，目标范围内是否有敌方单位
-                    for dx in range(-1, 2):
-                        for dy in range(-1, 2):
-                            target = [target_pos[0] + dx, target_pos[1] + dy]
-                            if self.is_enemy_unit_at_position(unit_id, target, team_obs):  # 需要实现 is_enemy_unit_at_position 方法
-                                hit_enemy = True
-                    action_info_all[unit_id]["sap_success"] = hit_enemy
-                    if not hit_enemy:
-                        action_info_all[unit_id]["sap_fail"] = True
-            # 判断非法移动
-            if abs(action[1]) > self.unit_sap_range or abs(action[2]) > self.unit_sap_range:
-                action_info_all[unit_id]["illegal_move"] = True
-            if self.is_invalid_move(action, team_obs):  # 需要实现 is_invalid_move 方法
-                action_info_all[unit_id]["illegal_move"] = True
-        
-        # 计算各 agent 的奖励
-        rewards = []
+            unit_obs = HarlLuxAIS3Env.construct_unit_obs(team_obs, self.player_id, unit_id,
+                                                         self.unit_sap_range, self.unit_move_cost, self.unit_sap_cost,
+                                                         self.max_relic_nodes, self.max_point_nodes,
+                                                         self.local_window_size, self.potential_point)
+            obs_agents.append(unit_obs)
         for unit_id in range(self.max_units):
-            unit_reward = self.get_unit_reward(unit_id, team_obs, obs_agents, s_obs, action_info=action_info_all.get(unit_id, {}))
-            rewards.append(unit_reward)
-
-        self.prev_unit_energy = [obs_agents[i]["self_state"]["energy"] for i in range(self.max_units)]
-        self.prev_sensor_count = np.sum(team_obs['sensor_mask'])
-        self.prev_team_wins = team_obs['team_wins']
+            unit_obs = HarlLuxAIS3Env.construct_unit_obs(enemy_obs, self.player_id, unit_id,
+                                                         self.unit_sap_range, self.unit_move_cost, self.unit_sap_cost,
+                                                         self.max_relic_nodes, self.max_point_nodes,
+                                                         self.local_window_size, self.potential_point)
+            enemy_obs_return.append(unit_obs)
         
         # -------------------------------
         # 更新 potential_point 的逻辑（unit级别）
@@ -420,23 +399,46 @@ class HarlLuxAIS3Env:
         # 更新增速和 team_points，用于下一步比较
         self.delta = new_delta
         self.prev_team_points = new_team_points
+    
+        
+        # 初始化 action_info 字典
+        action_info_all = {i: {"sap_success": False, "sap_fail": False, "illegal_move": False} for i in range(self.max_units)}
+
+        # 生成 action_info
+        for unit_id in range(self.max_units):
+            action = actions[unit_id]  # 当前 agent 的动作
+            # 判断是否为 sap 动作
+            if action[0] == 5:  # sap 动作
+                if abs(action[1]) < self.unit_sap_range and abs(action[2]) < self.unit_sap_range:
+                    # 检查该单位是否命中了敌方单位
+                    target_pos = [action[1], action[2]]
+                    hit_enemy = False
+                    # 检查周围8个格子，目标范围内是否有敌方单位
+                    for dx in range(-1, 2):
+                        for dy in range(-1, 2):
+                            target = [target_pos[0] + dx, target_pos[1] + dy]
+                            if self.is_enemy_unit_at_position(unit_id, target, team_obs):  # 需要实现 is_enemy_unit_at_position 方法
+                                hit_enemy = True
+                    action_info_all[unit_id]["sap_success"] = hit_enemy
+                    if not hit_enemy:
+                        action_info_all[unit_id]["sap_fail"] = True
+            # 判断非法移动
+            if abs(action[1]) > self.unit_sap_range or abs(action[2]) > self.unit_sap_range:
+                action_info_all[unit_id]["illegal_move"] = True
+            if self.is_invalid_move(action, team_obs):  # 需要实现 is_invalid_move 方法
+                action_info_all[unit_id]["illegal_move"] = True
+        
+        # 计算各 agent 的奖励
+        rewards = []
+        for unit_id in range(self.max_units):
+            unit_reward = self.get_unit_reward(unit_id, team_obs, obs_agents, s_obs, action_info=action_info_all.get(unit_id, {}))
+            rewards.append(unit_reward)
+
+        self.prev_unit_energy = [obs_agents[i]["self_state"]["energy"] for i in range(self.max_units)]
+        self.prev_sensor_count = np.sum(team_obs['sensor_mask'])
+        self.prev_team_wins = team_obs['team_wins']
+        
         # -------------------------------
-        
-        obs_agents = []
-        enemy_obs_return = []
-        for unit_id in range(self.max_units):
-            unit_obs = HarlLuxAIS3Env.construct_unit_obs(team_obs, self.player_id, unit_id,
-                                                         self.unit_sap_range, self.unit_move_cost, self.unit_sap_cost,
-                                                         self.max_relic_nodes, self.max_point_nodes,
-                                                         self.local_window_size, self.potential_point)
-            obs_agents.append(unit_obs)
-        for unit_id in range(self.max_units):
-            unit_obs = HarlLuxAIS3Env.construct_unit_obs(enemy_obs, self.player_id, unit_id,
-                                                         self.unit_sap_range, self.unit_move_cost, self.unit_sap_cost,
-                                                         self.max_relic_nodes, self.max_point_nodes,
-                                                         self.local_window_size, self.potential_point)
-            enemy_obs_return.append(unit_obs)
-        
         done = terminated or truncated
         dones = [done] * self.n_agents
         available_actions = self.action_space.copy()
